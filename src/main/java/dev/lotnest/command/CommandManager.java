@@ -1,6 +1,7 @@
 package dev.lotnest.command;
 
 import dev.lotnest.command.impl.PlayCommand;
+import dev.lotnest.command.impl.SummonCommand;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
@@ -14,6 +15,7 @@ public class CommandManager {
 
     public CommandManager() {
         addCommand(new PlayCommand());
+        addCommand(new SummonCommand());
     }
 
     private void addCommand(@NotNull ICommand command) {

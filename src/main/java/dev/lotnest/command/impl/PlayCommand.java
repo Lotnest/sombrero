@@ -4,8 +4,8 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.SearchResult;
-import dev.lotnest.Sombrero;
 import dev.lotnest.command.ICommand;
+import dev.lotnest.music.MusicManager;
 import dev.lotnest.util.Utils;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -15,21 +15,37 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.net.URL;
 import java.util.List;
 
 @Getter
 public class PlayCommand implements ICommand {
 
+    private final CommandData commandData;
     private final YouTube youTube;
 
     @SneakyThrows
     public PlayCommand() {
+        commandData = new CommandData(getName(), getDescription());
+        commandData.addOption(OptionType.STRING, "query", Utils.QUERY_INFORMATION, true);
+
         youTube = new YouTube.Builder(GoogleNetHttpTransport.newTrustedTransport(), JacksonFactory.getDefaultInstance(), null)
                 .setApplicationName("Sombrero Discord Bot")
                 .build();
+    }
+
+    private boolean isValidUrl(@NotNull String url) {
+        try {
+            new URL(url).toURI();
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     @SneakyThrows
@@ -75,19 +91,32 @@ public class PlayCommand implements ICommand {
                     return;
                 }
 
-                OptionMapping searchTermOptionMapping = event.getOption("query");
-                if (searchTermOptionMapping == null) {
-                    Utils.sendUsageMessage(this, event);
-                    return;
-                }
+                if (Utils.isMemberConnectedToVoiceChannel(event)) {
+                    if (botMember.getVoiceState() == null || botMember.getVoiceState().getChannel() == null) {
+                        Utils.summonBotToVoiceChannel(event, true);
+                    }
 
-                String youtubeSearchResult = executeYouTubeSearch(searchTermOptionMapping.getAsString());
-                if (youtubeSearchResult == null) {
-                    Utils.sendNoResultsMessage(this, event);
-                    return;
-                }
+                    OptionMapping searchTermOptionMapping = event.getOption("query");
+                    if (searchTermOptionMapping == null) {
+                        Utils.sendUsageMessage(this, event);
+                        return;
+                    }
 
-                Utils.sendAddedToQueueMessage(event, "Video Title Test");
+                    String youtubeSearchResult = executeYouTubeSearch(searchTermOptionMapping.getAsString());
+                    if (youtubeSearchResult == null) {
+                        Utils.sendNoResultsMessage(this, event);
+                        return;
+                    }
+
+                    if (isValidUrl(youtubeSearchResult)) {
+                        MusicManager.getInstance().play(event, youtubeSearchResult);
+                    } else {
+                        String formattedYouTubeSearchResult = youtubeSearchResult.substring(youtubeSearchResult.indexOf("h"));
+                        MusicManager.getInstance().play(event, formattedYouTubeSearchResult);
+                    }
+                } else {
+                    Utils.sendMemberNotConnectedToVoiceChannelMessage(event);
+                }
             }
         }
     }
@@ -105,5 +134,10 @@ public class PlayCommand implements ICommand {
     @Override
     public String getUsage() {
         return Utils.getUsageFormatted(this, "search-term");
+    }
+
+    @Override
+    public CommandData getCommandData() {
+        return commandData;
     }
 }
