@@ -9,6 +9,7 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import dev.lotnest.util.Utils;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import org.jetbrains.annotations.NotNull;
@@ -17,9 +18,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Getter
+@Slf4j
 public class MusicManager {
 
-    private static MusicManager INSTANCE;
+    private static MusicManager instance;
     private final AudioPlayerManager audioPlayerManager;
     private final Map<Long, GuildMusicManager> musicManagers;
 
@@ -31,16 +33,16 @@ public class MusicManager {
     }
 
     public static MusicManager getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new MusicManager();
+        if (instance == null) {
+            instance = new MusicManager();
         }
-        return INSTANCE;
+        return instance;
     }
 
-    public GuildMusicManager getMusicManager(@NotNull Guild guild) {
+    public GuildMusicManager getGuildMusicManager(@NotNull Guild guild) {
         return musicManagers.computeIfAbsent(guild.getIdLong(), guildId -> {
             GuildMusicManager guildMusicManager = new GuildMusicManager(audioPlayerManager);
-            guild.getAudioManager().setSendingHandler(guildMusicManager.audioPlayerSendHandler);
+            guild.getAudioManager().setSendingHandler(guildMusicManager.getMusicHandler());
             return guildMusicManager;
         });
     }
@@ -48,22 +50,29 @@ public class MusicManager {
     public void play(@NotNull SlashCommandEvent event, @NotNull String audioTrackURL) {
         Guild guild = event.getGuild();
         if (guild != null) {
-            GuildMusicManager musicManager = getMusicManager(guild);
+            GuildMusicManager musicManager = getGuildMusicManager(guild);
             audioPlayerManager.loadItemOrdered(musicManager, audioTrackURL, new AudioLoadResultHandler() {
                 @Override
                 public void trackLoaded(@NotNull AudioTrack audioTrack) {
-                    musicManager.musicScheduler.queueAudioTrack(audioTrack);
-                    Utils.sendAddedToQueueMessage(event, audioTrack.getInfo().title, audioTrack.getInfo().uri, Utils.getThumbnailURL(audioTrack.getIdentifier()), getMusicManager(event.getGuild()).musicScheduler.getAudioTrackQueue().size());
+                    log.info("({}) ({}) Track loaded: {}", event.getGuild().getId(), audioTrack.getInfo().identifier,
+                            audioTrack.getInfo().title);
+                    musicManager.getMusicScheduler().queueSong(new Song(audioTrack, event));
                 }
 
                 @Override
                 public void playlistLoaded(@NotNull AudioPlaylist audioPlaylist) {
-
+                    log.info("({}) Playlist loaded: {}", event.getGuild().getId(), audioPlaylist.getName());
+                    if (audioPlaylist.isSearchResult()) {
+                        AudioTrack audioTrack = audioPlaylist.getTracks().get(0);
+                        musicManager.getMusicScheduler().queueSong(new Song(audioTrack, event));
+                    } else {
+                        audioPlaylist.getTracks().forEach(audioTrack -> musicManager.getMusicScheduler().queueSong(new Song(audioTrack, event)));
+                    }
                 }
 
                 @Override
                 public void noMatches() {
-                    Utils.sendNoResultsMessage(Utils.PLAY_COMMAND_NAME_BOLD_UPPERCASE, event);
+                    Utils.sendNoResultsMessage(Utils.PLAY_BOLD, event);
                 }
 
                 @Override

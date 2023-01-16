@@ -1,10 +1,10 @@
-package dev.lotnest.command.impl;
+package dev.lotnest.command.impl.music;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.SearchResult;
-import dev.lotnest.command.ICommand;
+import dev.lotnest.command.Command;
 import dev.lotnest.music.MusicManager;
 import dev.lotnest.util.Utils;
 import lombok.Getter;
@@ -21,10 +21,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.URL;
+import java.util.Collections;
 import java.util.List;
 
 @Getter
-public class PlayCommand implements ICommand {
+public class PlayCommand implements Command {
 
     private final CommandData commandData;
     private final YouTube youTube;
@@ -34,7 +35,8 @@ public class PlayCommand implements ICommand {
         commandData = new CommandData(getName(), getDescription());
         commandData.addOption(OptionType.STRING, "query", Utils.QUERY_INFORMATION, true);
 
-        youTube = new YouTube.Builder(GoogleNetHttpTransport.newTrustedTransport(), JacksonFactory.getDefaultInstance(), null)
+        youTube = new YouTube.Builder(GoogleNetHttpTransport.newTrustedTransport(), GsonFactory.getDefaultInstance(),
+                null)
                 .setApplicationName("Sombrero Discord Bot")
                 .build();
     }
@@ -52,7 +54,7 @@ public class PlayCommand implements ICommand {
     @Nullable
     public String executeYouTubeSearch(@NotNull String searchTerm) {
         List<SearchResult> searchResults = youTube.search()
-                .list("id,snippet")
+                .list(Collections.singletonList("id,snippet"))
                 .setQ(searchTerm)
                 .setMaxResults(1L)
                 .setFields("items(id/kind,id/videoId,id/playlistId,snippet/title,snippet/thumbnails/default/url)")
@@ -62,7 +64,6 @@ public class PlayCommand implements ICommand {
 
         if (!searchResults.isEmpty()) {
             SearchResult firstResult = searchResults.get(0);
-
             String videoId = firstResult.getId().getVideoId();
             String playlistId = firstResult.getId().getPlaylistId();
 
@@ -92,7 +93,7 @@ public class PlayCommand implements ICommand {
                 }
 
                 if (Utils.isMemberConnectedToVoiceChannel(event)) {
-                    if (botMember.getVoiceState() == null || botMember.getVoiceState().getChannel() == null) {
+                    if (!Utils.isBotConnectedToVoiceChannel(botMember)) {
                         Utils.summonBotToVoiceChannel(event, true);
                     }
 
@@ -111,7 +112,8 @@ public class PlayCommand implements ICommand {
                     if (isValidUrl(youtubeSearchResult)) {
                         MusicManager.getInstance().play(event, youtubeSearchResult);
                     } else {
-                        String formattedYouTubeSearchResult = youtubeSearchResult.substring(youtubeSearchResult.indexOf("h"));
+                        String formattedYouTubeSearchResult = youtubeSearchResult.substring(
+                                youtubeSearchResult.indexOf("h"));
                         MusicManager.getInstance().play(event, formattedYouTubeSearchResult);
                     }
                 } else {
@@ -134,10 +136,5 @@ public class PlayCommand implements ICommand {
     @Override
     public String getUsage() {
         return Utils.getUsageFormatted(this, "search-term");
-    }
-
-    @Override
-    public CommandData getCommandData() {
-        return commandData;
     }
 }

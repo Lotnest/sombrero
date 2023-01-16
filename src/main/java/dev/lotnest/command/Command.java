@@ -4,7 +4,7 @@ import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.jetbrains.annotations.NotNull;
 
-public interface ICommand {
+public interface Command {
 
     void execute(@NotNull SlashCommandEvent event);
 

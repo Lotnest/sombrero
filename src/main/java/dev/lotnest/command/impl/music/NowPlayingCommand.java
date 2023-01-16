@@ -1,8 +1,10 @@
-package dev.lotnest.command.impl;
+package dev.lotnest.command.impl.music;
 
-import dev.lotnest.command.ICommand;
+import dev.lotnest.command.Command;
+import dev.lotnest.music.MusicManager;
+import dev.lotnest.music.MusicScheduler;
 import dev.lotnest.util.Utils;
-import net.dv8tion.jda.api.Permission;
+import lombok.SneakyThrows;
 import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -10,11 +12,12 @@ import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.jetbrains.annotations.NotNull;
 
-public class SummonCommand implements ICommand {
+public class NowPlayingCommand implements Command {
 
     private final CommandData commandData;
 
-    public SummonCommand() {
+    @SneakyThrows
+    public NowPlayingCommand() {
         commandData = new CommandData(getName(), getDescription());
     }
 
@@ -28,34 +31,32 @@ public class SummonCommand implements ICommand {
                     return;
                 }
 
-                Member member = event.getMember();
-                if (member == null) {
+                if (!Utils.isBotConnectedToVoiceChannel(botMember)) {
+                    Utils.sendBotNotConnectedToVoiceChannelMessage(event);
                     return;
                 }
 
-                if (!botMember.hasPermission(Permission.VOICE_CONNECT)) {
-                    Utils.sendNoPermissionMessage(Permission.VOICE_CONNECT, event);
+                MusicScheduler musicScheduler = MusicManager.getInstance()
+                        .getGuildMusicManager(guild)
+                        .getMusicScheduler();
+                if (musicScheduler.getAudioPlayer().getPlayingTrack() == null) {
+                    Utils.sendNoSongPlayingMessage(event);
                     return;
                 }
 
-                if (!Utils.isMemberConnectedToVoiceChannel(event)) {
-                    Utils.sendMemberNotConnectedToVoiceChannelMessage(event);
-                    return;
-                }
-
-                Utils.summonBotToVoiceChannel(event);
+                Utils.sendNowPlayingDetailedMessage(event);
             }
         }
     }
 
     @Override
     public String getName() {
-        return "summon";
+        return "now_playing";
     }
 
     @Override
     public String getDescription() {
-        return "Summons the bot to your voice channel.";
+        return "Shows the currently playing song.";
     }
 
     @Override
