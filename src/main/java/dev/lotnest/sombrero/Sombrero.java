@@ -1,4 +1,4 @@
-package dev.lotnest;
+package dev.lotnest.sombrero;
 
 import lombok.SneakyThrows;
 
@@ -6,6 +6,6 @@ public class Sombrero {
 
     @SneakyThrows
     public static void main(String[] args) {
-        new CommandLineRunner();
+        CommandLineRunner.run(args);
     }
 }

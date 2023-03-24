@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>dev.lotnest</groupId>
+    <groupId>dev.lotnest.sombrero</groupId>
     <artifactId>Sombrero</artifactId>
     <version>1.0-SNAPSHOT</version>
     <description>Sombrero is a Discord multi-purpose bot that provides your server with high-quality music playing and much more.</description>
@@ -40,7 +40,7 @@
         <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
-            <version>23.0.0</version>
+            <version>23.1.0</version>
         </dependency>
 
         <dependency>
@@ -84,6 +84,12 @@
             <artifactId>log4j-slf4j-impl</artifactId>
             <version>2.19.0</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.theokanning.openai-gpt3-java</groupId>
+            <artifactId>service</artifactId>
+            <version>0.11.1</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -98,7 +104,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>lotnest.rika.Rika</mainClass>
+                            <mainClass>dev.lotnest.sombrero.Sombrero</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

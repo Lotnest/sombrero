@@ -1,4 +1,4 @@
-package dev.lotnest.command;
+package dev.lotnest.sombrero.command;
 
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;

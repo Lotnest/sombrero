@@ -1,13 +1,14 @@
-package dev.lotnest.util;
+package dev.lotnest.sombrero.util;
 
 import com.google.common.collect.Maps;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
-import dev.lotnest.command.Command;
-import dev.lotnest.event.EventListener;
-import dev.lotnest.music.MusicManager;
-import dev.lotnest.music.Song;
+import dev.lotnest.sombrero.CommandLineRunner;
+import dev.lotnest.sombrero.command.Command;
+import dev.lotnest.sombrero.event.EventListener;
+import dev.lotnest.sombrero.music.MusicManager;
+import dev.lotnest.sombrero.music.Song;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -28,7 +29,7 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.*;
+import java.awt.Color;
 import java.rmi.UnexpectedException;
 import java.time.Duration;
 import java.util.List;
@@ -56,6 +57,7 @@ public class Utils {
     public static final String NOW_PLAYING_TITLE = getTitle("Now playing");
     public static final String PING_TITLE = getTitle("Ping");
     public static final String HELP_TITLE = getTitle("Help");
+    public static final String GPT_TITLE = getTitle("GPT");
 
     public static final String MUSIC_BOLD = getBoldText("Music");
     public static final String PLAY_BOLD = getBoldText("Play");
@@ -69,6 +71,7 @@ public class Utils {
     public static final String PING_BOLD = getBoldText("Ping");
     public static final String PING_COMMAND_BOLD = getBoldText("/ping");
     public static final String HELP_COMMAND_BOLD = getBoldText("/help");
+    public static final String GPT_COMMAND_BOLD = getBoldText("/gpt");
 
     public static final String NO_PERMISSION_DESCRIPTION = "Hmm, looks like the bot is missing the following permission: ```%s```. Please update the bot's permissions and try again.";
     public static final String HELP_DESCRIPTION = "Shows help.";
@@ -77,8 +80,11 @@ public class Utils {
     public static final String PLAY_DESCRIPTION = "Plays a song from YouTube.";
     public static final String NOW_PLAYING_DESCRIPTION = "Shows the currently playing song.";
     public static final String SKIP_DESCRIPTION = "Skips the currently playing song.";
+    public static final String GPT_DESCRIPTION = "Generates text using GPT-3.";
 
-    public static final String QUERY_INFORMATION = "Query params: video URL or title.";
+    public static final String YOUTUBE_QUERY_INFORMATION = "Query params: video URL or title.";
+    public static final String GPT_PROMPT_INFORMATION = "Any text.";
+    public static final String GPT_PROMPT_MISSING = "Please provide a prompt.";
     public static final String NO_RESULTS_FOUND = "No results were found matching your query.";
     public static final String ADDED_TO_QUEUE = "Song was added to queue at position **#%d**.";
     public static final String LOADING_TRACK_FAILED = "Loading the song has failed, please try again later.";
@@ -96,9 +102,8 @@ public class Utils {
     public static final String THUMBNAIL_URL_FORMAT = "https://img.youtube.com/vi/%s/default.jpg";
     public static final String NOW_PLAYING_FORMAT = "Song progress: **%s**\nSong duration: **%s**";
     public static final String PING_FORMAT = "Bot latency: **%d ms**\nDiscord API latency: **%d ms**";
-
-    private static final Map<String, TextChannel> LAST_USED_TEXT_CHANNELS = Maps.newConcurrentMap();
     public static final ScheduledExecutorService SCHEDULED_EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
+    private static final Map<String, TextChannel> LAST_USED_TEXT_CHANNELS = Maps.newConcurrentMap();
 
     private Utils() {
         throw new UnsupportedOperationException("Utils class should not be instantiated");
@@ -151,29 +156,24 @@ public class Utils {
             return;
         }
 
-        LAST_USED_TEXT_CHANNELS.put(event.getGuild().getId(), event.getTextChannel());
+        try {
+            if (!event.isAcknowledged()) {
+                event.deferReply().queue();
+            }
 
-        event.getJDA()
-                .retrieveApplicationInfo()
-                .queue(applicationInfo -> {
-                    try {
-                        log.debug("Sending message to user {} in guild {}", event.getUser().getAsTag(), Objects.requireNonNull(event.getGuild()).getId());
-                        EmbedBuilder embedBuilder = getEmbedBuilder(color, title, uri, description, thumbnailURL, applicationInfo, fields);
+            log.debug("Sending message to user {} in guild {}", event.getUser().getAsTag(), Objects.requireNonNull(event.getGuild()).getId());
+            LAST_USED_TEXT_CHANNELS.put(event.getGuild().getId(), event.getTextChannel());
 
-                        if (event.isAcknowledged()) {
-                            event.getHook()
-                                    .sendMessageEmbeds(embedBuilder.build())
-                                    .setEphemeral(ephemeral)
-                                    .queue();
-                        } else {
-                            event.replyEmbeds(embedBuilder.build())
-                                    .setEphemeral(ephemeral)
-                                    .queue();
-                        }
-                    } catch (Exception exception) {
-                        log.error("Failed to send a message", exception);
-                    }
-                }, throwable -> log.error("Failed to send a message", throwable));
+            ApplicationInfo applicationInfo = CommandLineRunner.getInstance().getApplicationInfo();
+            EmbedBuilder embedBuilder = getEmbedBuilder(color, title, uri, description, thumbnailURL, applicationInfo, fields);
+
+            event.getHook()
+                    .setEphemeral(ephemeral)
+                    .editOriginalEmbeds(embedBuilder.build())
+                    .queue();
+        } catch (Exception exception) {
+            log.error("Failed to send a message", exception);
+        }
     }
 
     private static @NotNull EmbedBuilder getEmbedBuilder(@NotNull Color color, @NotNull String title, @Nullable String uri, @Nullable String description, @Nullable String thumbnailURL, @NotNull ApplicationInfo applicationInfo, @Nullable MessageEmbed.Field[] fields) {
@@ -184,7 +184,7 @@ public class Utils {
                 .setThumbnail(thumbnailURL)
                 .setFooter(applicationInfo.getOwner().getName() + " | Bot Developer", applicationInfo.getOwner().getEffectiveAvatarUrl());
 
-        if (fields != null && fields.length > 0) {
+        if (fields != null) {
             for (MessageEmbed.Field field : fields) {
                 embedBuilder.addField(field);
             }
@@ -389,7 +389,8 @@ public class Utils {
                 new MessageEmbed.Field(SUMMON_COMMAND_BOLD, SUMMON_DESCRIPTION, true),
                 new MessageEmbed.Field(PLAY_COMMAND_BOLD, PLAY_DESCRIPTION, true),
                 new MessageEmbed.Field(NOW_PLAYING_COMMAND_BOLD, NOW_PLAYING_DESCRIPTION, true),
-                new MessageEmbed.Field(SKIP_COMMAND_BOLD, SKIP_DESCRIPTION, true));
+                new MessageEmbed.Field(SKIP_COMMAND_BOLD, SKIP_DESCRIPTION, true),
+                new MessageEmbed.Field(GPT_COMMAND_BOLD, GPT_DESCRIPTION, true));
     }
 
     public static @NotNull Optional<TextChannel> getLastUsedTextChannel(@NotNull Guild guild) {
@@ -426,5 +427,9 @@ public class Utils {
                 System.exit(0);
             }, 5, TimeUnit.MINUTES);
         }, () -> System.exit(0));
+    }
+
+    public static void sendGPTMessage(@NotNull SlashCommandEvent event, @NotNull String responseFromGPT) {
+        sendMessage(event, GPT_TITLE, null, false, new MessageEmbed.Field(GPT_COMMAND_BOLD, responseFromGPT, true));
     }
 }

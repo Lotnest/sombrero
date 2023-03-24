@@ -1,7 +1,7 @@
-package dev.lotnest.command.impl.general;
+package dev.lotnest.sombrero.command.impl.general;
 
-import dev.lotnest.command.Command;
-import dev.lotnest.util.Utils;
+import dev.lotnest.sombrero.command.Command;
+import dev.lotnest.sombrero.util.Utils;
 import lombok.SneakyThrows;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;

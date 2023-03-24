@@ -1,12 +1,13 @@
-package dev.lotnest.command.impl.music;
+package dev.lotnest.sombrero.command.impl.music;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.SearchResult;
-import dev.lotnest.command.Command;
-import dev.lotnest.music.MusicManager;
-import dev.lotnest.util.Utils;
+import dev.lotnest.sombrero.command.Command;
+import dev.lotnest.sombrero.music.MusicManager;
+import dev.lotnest.sombrero.util.ApiKeys;
+import dev.lotnest.sombrero.util.Utils;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import net.dv8tion.jda.api.Permission;
@@ -33,7 +34,7 @@ public class PlayCommand implements Command {
     @SneakyThrows
     public PlayCommand() {
         commandData = new CommandData(getName(), getDescription());
-        commandData.addOption(OptionType.STRING, "query", Utils.QUERY_INFORMATION, true);
+        commandData.addOption(OptionType.STRING, "query", Utils.YOUTUBE_QUERY_INFORMATION, true);
 
         youTube = new YouTube.Builder(GoogleNetHttpTransport.newTrustedTransport(), GsonFactory.getDefaultInstance(),
                 null)
@@ -58,7 +59,7 @@ public class PlayCommand implements Command {
                 .setQ(searchTerm)
                 .setMaxResults(1L)
                 .setFields("items(id/kind,id/videoId,id/playlistId,snippet/title,snippet/thumbnails/default/url)")
-                .setKey(System.getenv("YOUTUBE_KEY"))
+                .setKey(ApiKeys.YOUTUBE)
                 .execute()
                 .getItems();
 
@@ -130,7 +131,7 @@ public class PlayCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Play YouTube music directly from your server's voice channel. " + Utils.QUERY_INFORMATION;
+        return "Play YouTube music directly from your server's voice channel. " + Utils.YOUTUBE_QUERY_INFORMATION;
     }
 
     @Override

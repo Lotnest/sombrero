@@ -1,9 +1,10 @@
-package dev.lotnest.event;
+package dev.lotnest.sombrero.event;
 
-import dev.lotnest.command.Command;
-import dev.lotnest.command.CommandManager;
-import dev.lotnest.music.MusicManager;
-import dev.lotnest.util.Utils;
+import dev.lotnest.sombrero.command.Command;
+import dev.lotnest.sombrero.command.CommandManager;
+import dev.lotnest.sombrero.music.MusicManager;
+import dev.lotnest.sombrero.util.Utils;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.events.ReadyEvent;
@@ -16,11 +17,12 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
+@RequiredArgsConstructor
 public class EventListener extends ListenerAdapter {
 
     private static JDA jda;
 
-    private final CommandManager commandManager = new CommandManager();
+    private final @NotNull CommandManager commandManager;
 
     public static @NotNull Optional<JDA> getJda() {
         return Optional.ofNullable(jda);

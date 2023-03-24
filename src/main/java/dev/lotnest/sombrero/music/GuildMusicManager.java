@@ -1,4 +1,4 @@
-package dev.lotnest.music;
+package dev.lotnest.sombrero.music;
 
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
