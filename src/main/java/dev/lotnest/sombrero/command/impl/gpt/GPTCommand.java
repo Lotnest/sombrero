@@ -16,6 +16,7 @@ import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Getter
 public class GPTCommand implements Command {
@@ -34,28 +35,27 @@ public class GPTCommand implements Command {
 
     @Override
     public void execute(@NotNull SlashCommandEvent event) {
-        event.deferReply().queue();
+        CompletableFuture.runAsync(() -> {
+            event.deferReply().queue();
 
-        OptionMapping promptOption = event.getOption(PROMPT_OPTION_NAME);
-        if (promptOption == null) {
-            Utils.sendGPTMessage(event, Utils.GPT_PROMPT_MISSING);
-            return;
-        }
+            OptionMapping promptOption = event.getOption(PROMPT_OPTION_NAME);
+            if (promptOption == null) {
+                Utils.sendGPTMessage(event, Utils.GPT_PROMPT_MISSING);
+                return;
+            }
 
-        GPTRequest gptRequest = new GPTRequest(GPTRequestParams.basedOnDefaultWithPrompt(promptOption.getAsString()));
-        GPTCompletionCreator gptCompletionCreator = new GPTCompletionCreator(openAiService, gptRequest);
-        List<CompletionChoice> choices = gptCompletionCreator.create().getChoices();
+            GPTRequest gptRequest = new GPTRequest(GPTRequestParams.defaultParamsWithPrompt(promptOption.getAsString()));
+            GPTCompletionCreator gptCompletionCreator = new GPTCompletionCreator(openAiService, gptRequest);
+            List<CompletionChoice> choices = gptCompletionCreator.create().getChoices();
 
-        if (choices.isEmpty()) {
-            Utils.sendGPTMessage(event, Utils.NO_RESULTS_FOUND);
-            return;
-        }
+            if (choices.isEmpty()) {
+                Utils.sendGPTMessage(event, Utils.NO_RESULTS_FOUND);
+                return;
+            }
 
-        String response = choices.get(0).getText().strip();
-        if (response.matches("^\\?.+$")) {
-            response = response.replaceFirst("\\?", "");
-        }
-        Utils.sendGPTMessage(event, response);
+            String response = choices.get(0).getText().replaceAll("^\\W+", "");
+            Utils.sendGPTMessage(event, response);
+        });
     }
 
     @Override

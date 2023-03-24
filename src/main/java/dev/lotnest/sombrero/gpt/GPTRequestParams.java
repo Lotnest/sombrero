@@ -26,7 +26,7 @@ public class GPTRequestParams {
     private int maxTokens;
     private @Nullable List<String> stop;
 
-    public static @NotNull GPTRequestParams basedOnDefaultWithPrompt(@NotNull String prompt) {
+    public static @NotNull GPTRequestParams defaultParamsWithPrompt(@NotNull String prompt) {
         return GPTRequestParams.builder()
                 .prompt(prompt)
                 .model(DEFAULT.getModel())
