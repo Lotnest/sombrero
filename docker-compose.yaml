@@ -1,0 +1,39 @@
+volumes:
+  data:
+
+services:
+  postgres:
+    image: postgres
+    container_name: sombrero-postgres
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - 5432:5432
+    volumes:
+      - data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  spring:
+    image: sombrero
+    container_name: sombrero-spring
+    ports:
+      - 8080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/sombrero
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --fail http://localhost:8080/actuator/health || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s

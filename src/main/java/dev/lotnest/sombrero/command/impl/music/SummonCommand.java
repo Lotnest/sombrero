@@ -2,27 +2,27 @@ package dev.lotnest.sombrero.command.impl.music;
 
 import dev.lotnest.sombrero.command.Command;
 import dev.lotnest.sombrero.util.Utils;
-import lombok.Getter;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
-import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.stereotype.Component;
 
-@Getter
-public class SummonCommand implements Command {
+@Component
+public class SummonCommand extends Command {
 
-    private final CommandData commandData;
+    private final Utils utils;
 
-    public SummonCommand() {
-        commandData = new CommandData(getName(), getDescription());
+    public SummonCommand(@NotNull Utils utils) {
+        super(utils.messageSender());
+        this.utils = utils;
     }
 
     @Override
-    public void execute(@NotNull SlashCommandEvent event) {
-        if (event.getChannelType().equals(ChannelType.TEXT)) {
+    public void execute(@NotNull SlashCommandInteractionEvent event) {
+        if (event.getChannelType() == ChannelType.TEXT) {
             Guild guild = event.getGuild();
             if (guild != null) {
                 Member botMember = guild.getMember(event.getJDA().getSelfUser());
@@ -36,16 +36,16 @@ public class SummonCommand implements Command {
                 }
 
                 if (!botMember.hasPermission(Permission.VOICE_CONNECT)) {
-                    Utils.sendNoPermissionMessage(Permission.VOICE_CONNECT, event);
+                    messageSender.sendNoPermissionMessage(Permission.VOICE_CONNECT, event);
                     return;
                 }
 
-                if (!Utils.isMemberConnectedToVoiceChannel(event)) {
-                    Utils.sendMemberNotConnectedToVoiceChannelMessage(event);
+                if (!utils.isMemberConnectedToVoiceChannel(member)) {
+                    messageSender.sendMemberNotConnectedToVoiceChannelMessage(event);
                     return;
                 }
 
-                Utils.summonBotToVoiceChannel(event);
+                utils.summonBotToVoiceChannel(event);
             }
         }
     }
@@ -58,10 +58,5 @@ public class SummonCommand implements Command {
     @Override
     public String getDescription() {
         return "Summons the bot to your voice channel.";
-    }
-
-    @Override
-    public String getUsage() {
-        return Utils.getUsageFormatted(this);
     }
 }

@@ -1,7 +1,6 @@
 package dev.lotnest.sombrero.command.impl.music;
 
 import dev.lotnest.sombrero.command.Command;
-import dev.lotnest.sombrero.music.MusicManager;
 import dev.lotnest.sombrero.util.Utils;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -11,15 +10,13 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
 @Component
-public class SkipCommand extends Command {
+public class DisconnectCommand extends Command {
 
     private final Utils utils;
-    private final MusicManager musicManager;
 
-    public SkipCommand(@NotNull Utils utils, MusicManager musicManager) {
+    public DisconnectCommand(@NotNull Utils utils) {
         super(utils.messageSender());
         this.utils = utils;
-        this.musicManager = musicManager;
     }
 
     @Override
@@ -32,25 +29,38 @@ public class SkipCommand extends Command {
                     return;
                 }
 
+                Member member = event.getMember();
+                if (member == null) {
+                    return;
+                }
+
+                if (!utils.isMemberConnectedToVoiceChannel(member)) {
+                    messageSender.sendMemberNotConnectedToVoiceChannelMessage(event);
+                    return;
+                }
+
                 if (!utils.isBotConnectedToVoiceChannel(botMember)) {
                     messageSender.sendBotNotConnectedToVoiceChannelMessage(event);
                     return;
                 }
 
-                musicManager.getGuildMusicManager(guild)
-                        .musicScheduler()
-                        .skipCurrentSong(event);
+                if (!utils.isMemberConnectedToSameVoiceChannelAsBot(member, botMember)) {
+                    messageSender.sendMemberNotConnectedToSameVoiceChannelAsBotMessage(event);
+                    return;
+                }
+
+                utils.disconnectBotFromVoiceChannel(event);
             }
         }
     }
 
     @Override
     public String getName() {
-        return "skip";
+        return "disconnect";
     }
 
     @Override
     public String getDescription() {
-        return "Skips a track to the next queued one.";
+        return "Disconnects the bot from your voice channel.";
     }
 }

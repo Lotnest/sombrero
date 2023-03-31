@@ -1,24 +1,21 @@
 package dev.lotnest.sombrero.command.impl.general;
 
 import dev.lotnest.sombrero.command.Command;
-import dev.lotnest.sombrero.util.Utils;
-import lombok.SneakyThrows;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
-import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+import dev.lotnest.sombrero.message.MessageSender;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.stereotype.Component;
 
-public class HelpCommand implements Command {
+@Component
+public class HelpCommand extends Command {
 
-    private final CommandData commandData;
-
-    @SneakyThrows
-    public HelpCommand() {
-        commandData = new CommandData(getName(), getDescription());
+    public HelpCommand(@NotNull MessageSender messageSender) {
+        super(messageSender);
     }
 
     @Override
-    public void execute(@NotNull SlashCommandEvent event) {
-        Utils.sendHelpMessage(event);
+    public void execute(@NotNull SlashCommandInteractionEvent event) {
+        messageSender.sendHelpMessage(event);
     }
 
     @Override
@@ -28,16 +25,6 @@ public class HelpCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Shows the help for Sombrero Bot.";
-    }
-
-    @Override
-    public String getUsage() {
-        return Utils.getUsageFormatted(this);
-    }
-
-    @Override
-    public CommandData getCommandData() {
-        return commandData;
+        return "Shows the help for Sombrero.";
     }
 }

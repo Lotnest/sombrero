@@ -2,67 +2,89 @@ package dev.lotnest.sombrero.event;
 
 import dev.lotnest.sombrero.command.Command;
 import dev.lotnest.sombrero.command.CommandManager;
-import dev.lotnest.sombrero.music.MusicManager;
-import dev.lotnest.sombrero.util.Utils;
+import dev.lotnest.sombrero.maintenance.MaintenanceService;
+import dev.lotnest.sombrero.maintenance.MaintenanceServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.events.ReadyEvent;
-import net.dv8tion.jda.api.events.ShutdownEvent;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.entities.ApplicationInfo;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.context.ApplicationContext;
+import org.springframework.stereotype.Component;
 
-import java.util.Optional;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
-@Slf4j
+@Component
 @RequiredArgsConstructor
+@Slf4j
 public class EventListener extends ListenerAdapter {
 
-    private static JDA jda;
-
-    private final @NotNull CommandManager commandManager;
-
-    public static @NotNull Optional<JDA> getJda() {
-        return Optional.ofNullable(jda);
-    }
+    private final ApplicationContext applicationContext;
+    private CommandManager commandManager;
+    private MaintenanceService maintenanceService;
+    private ApplicationInfo applicationInfo;
 
     @Override
     public void onReady(@NotNull ReadyEvent event) {
-        log.info("Bot started successfully with {} commands.", commandManager.getCommands().size());
+        if (commandManager == null) {
+            commandManager = applicationContext.getBean(CommandManager.class);
+        }
 
-        jda = event.getJDA();
-        jda.updateCommands()
+        if (maintenanceService == null) {
+            maintenanceService = applicationContext.getBean(MaintenanceServiceImpl.class);
+        }
+
+        if (applicationInfo == null) {
+            applicationInfo = applicationContext.getBean(ApplicationInfo.class);
+        }
+
+        log.info("Registering commands: {}", commandManager.getCommands().stream()
+                .map(Command::getName)
+                .map(commandName -> "/" + commandName)
+                .collect(Collectors.joining(", ")));
+
+        event.getJDA().updateCommands()
                 .addCommands(commandManager.getCommands().stream()
-                        .map(Command::getCommandData)
+                        .filter(Objects::nonNull)
+                        .map(Command::getData)
                         .collect(Collectors.toSet()))
                 .queue();
+
+        log.info("Sombrero started successfully with {} commands.", commandManager.getCommands().size());
     }
 
     @Override
-    public void onSlashCommand(@NotNull SlashCommandEvent event) {
+    public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
+        if (maintenanceService.isMaintenance() && isBotOwner(event)) {
+            event.deferReply(true)
+                    .addContent("Sombrero is currently under maintenance, please check back later.")
+                    .queue();
+            return;
+        }
+
         commandManager.getCommands().stream()
-                .filter(command -> command.getName().equals(event.getName()))
-                .forEach(command -> {
-                    try {
-                        command.execute(event);
-                    } catch (Exception exception) {
-                        Utils.sendErrorOccurredMessage(event, exception);
+                .filter(command -> command.getName().equalsIgnoreCase(event.getName()))
+                .filter(command -> {
+                    if (command.isEnabled()) {
+                        return true;
+                    } else {
+                        if (isBotOwner(event)) {
+                            return true;
+                        }
+
+                        event.deferReply(true)
+                                .addContent("This command is currently disabled, please check back later.")
+                                .queue();
+                        return false;
                     }
-                });
+                })
+                .forEach(command -> command.executeAsyncWithExceptionHandler(event));
     }
 
-    @Override
-    public void onShutdown(@NotNull ShutdownEvent event) {
-        MusicManager.getInstance().getMusicManagers()
-                .values()
-                .forEach(guildMusicManager -> {
-                    guildMusicManager.getAudioPlayer()
-                            .destroy();
-                    guildMusicManager.getMusicScheduler()
-                            .getSongQueue()
-                            .clear();
-                });
+    private boolean isBotOwner(@NotNull SlashCommandInteractionEvent event) {
+        return event.getMember() != null && event.getMember().getId().equals(applicationInfo.getOwner().getId());
     }
 }

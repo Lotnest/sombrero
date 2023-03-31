@@ -1,45 +1,43 @@
 package dev.lotnest.sombrero.command.impl.music;
 
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.SearchResult;
 import dev.lotnest.sombrero.command.Command;
+import dev.lotnest.sombrero.command.SlashCommandDataProvider;
 import dev.lotnest.sombrero.music.MusicManager;
 import dev.lotnest.sombrero.util.ApiKeys;
 import dev.lotnest.sombrero.util.Utils;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.stereotype.Component;
 
 import java.net.URL;
 import java.util.Collections;
 import java.util.List;
 
-@Getter
-public class PlayCommand implements Command {
+@Component
+public class PlayCommand extends Command {
 
-    private final CommandData commandData;
+    private static final String YOUTUBE_QUERY_INFORMATION = "Query params: video URL or title.";
+
+    private final Utils utils;
     private final YouTube youTube;
+    private final MusicManager musicManager;
 
-    @SneakyThrows
-    public PlayCommand() {
-        commandData = new CommandData(getName(), getDescription());
-        commandData.addOption(OptionType.STRING, "query", Utils.YOUTUBE_QUERY_INFORMATION, true);
-
-        youTube = new YouTube.Builder(GoogleNetHttpTransport.newTrustedTransport(), GsonFactory.getDefaultInstance(),
-                null)
-                .setApplicationName("Sombrero Discord Bot")
-                .build();
+    public PlayCommand(@NotNull Utils utils, @NotNull YouTube youTube, @NotNull MusicManager musicManager) {
+        super(utils.messageSender());
+        this.utils = utils;
+        this.youTube = youTube;
+        this.musicManager = musicManager;
     }
 
     private boolean isValidUrl(@NotNull String url) {
@@ -53,7 +51,7 @@ public class PlayCommand implements Command {
 
     @SneakyThrows
     @Nullable
-    public String executeYouTubeSearch(@NotNull String searchTerm) {
+    private String performYouTubeSearch(@NotNull String searchTerm) {
         List<SearchResult> searchResults = youTube.search()
                 .list(Collections.singletonList("id,snippet"))
                 .setQ(searchTerm)
@@ -79,8 +77,8 @@ public class PlayCommand implements Command {
     }
 
     @Override
-    public void execute(@NotNull SlashCommandEvent event) {
-        if (event.getChannelType().equals(ChannelType.TEXT)) {
+    public void execute(@NotNull SlashCommandInteractionEvent event) {
+        if (event.getChannelType() == ChannelType.TEXT) {
             Guild guild = event.getGuild();
             if (guild != null) {
                 Member botMember = guild.getMember(event.getJDA().getSelfUser());
@@ -88,37 +86,40 @@ public class PlayCommand implements Command {
                     return;
                 }
 
-                if (!botMember.hasPermission(Permission.VOICE_CONNECT)) {
-                    Utils.sendNoPermissionMessage(Permission.VOICE_CONNECT, event);
+                Member member = event.getMember();
+                if (member == null) {
                     return;
                 }
 
-                if (Utils.isMemberConnectedToVoiceChannel(event)) {
-                    if (!Utils.isBotConnectedToVoiceChannel(botMember)) {
-                        Utils.summonBotToVoiceChannel(event, true);
+                if (!botMember.hasPermission(Permission.VOICE_CONNECT)) {
+                    messageSender.sendNoPermissionMessage(Permission.VOICE_CONNECT, event);
+                    return;
+                }
+
+                if (utils.isMemberConnectedToVoiceChannel(member)) {
+                    if (!utils.isBotConnectedToVoiceChannel(botMember)) {
+                        utils.summonBotToVoiceChannel(event, true);
                     }
 
                     OptionMapping searchTermOptionMapping = event.getOption("query");
                     if (searchTermOptionMapping == null) {
-                        Utils.sendUsageMessage(this, event);
+                        messageSender.sendUsageMessage(this, event);
                         return;
                     }
 
-                    String youtubeSearchResult = executeYouTubeSearch(searchTermOptionMapping.getAsString());
+                    String youtubeSearchResult = performYouTubeSearch(searchTermOptionMapping.getAsString());
                     if (youtubeSearchResult == null) {
-                        Utils.sendNoResultsMessage(this, event);
+                        messageSender.sendNoResultsFoundMessage(event);
                         return;
                     }
 
                     if (isValidUrl(youtubeSearchResult)) {
-                        MusicManager.getInstance().play(event, youtubeSearchResult);
+                        musicManager.play(event, youtubeSearchResult);
                     } else {
-                        String formattedYouTubeSearchResult = youtubeSearchResult.substring(
-                                youtubeSearchResult.indexOf("h"));
-                        MusicManager.getInstance().play(event, formattedYouTubeSearchResult);
+                        musicManager.play(event, youtubeSearchResult.substring(youtubeSearchResult.indexOf("h")));
                     }
                 } else {
-                    Utils.sendMemberNotConnectedToVoiceChannelMessage(event);
+                    messageSender.sendMemberNotConnectedToVoiceChannelMessage(event);
                 }
             }
         }
@@ -131,11 +132,17 @@ public class PlayCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Play YouTube music directly from your server's voice channel. " + Utils.YOUTUBE_QUERY_INFORMATION;
+        return "Play YouTube music directly from your server's voice channel. " + YOUTUBE_QUERY_INFORMATION;
     }
 
     @Override
     public String getUsage() {
-        return Utils.getUsageFormatted(this, "search-term");
+        return messageSender.getUsageFormatted(this, "search-term");
+    }
+
+    @Override
+    public CommandData getData() {
+        return SlashCommandDataProvider.of(this)
+                .addOption(OptionType.STRING, "query", YOUTUBE_QUERY_INFORMATION, true);
     }
 }

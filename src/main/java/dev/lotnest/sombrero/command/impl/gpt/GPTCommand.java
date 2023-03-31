@@ -3,59 +3,53 @@ package dev.lotnest.sombrero.command.impl.gpt;
 import com.theokanning.openai.completion.CompletionChoice;
 import com.theokanning.openai.service.OpenAiService;
 import dev.lotnest.sombrero.command.Command;
+import dev.lotnest.sombrero.command.SlashCommandDataProvider;
 import dev.lotnest.sombrero.gpt.GPTCompletionCreator;
 import dev.lotnest.sombrero.gpt.GPTRequest;
 import dev.lotnest.sombrero.gpt.GPTRequestParams;
-import dev.lotnest.sombrero.util.Utils;
-import lombok.Getter;
-import lombok.SneakyThrows;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import dev.lotnest.sombrero.message.MessageSender;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
-@Getter
-public class GPTCommand implements Command {
+@Component
+public class GPTCommand extends Command {
 
     private static final String PROMPT_OPTION_NAME = "prompt";
 
-    private final @NotNull CommandData commandData;
-    private final @NotNull OpenAiService openAiService;
+    private final OpenAiService openAiService;
 
-    @SneakyThrows
-    public GPTCommand(@NotNull OpenAiService openAiService) {
+    public GPTCommand(@NotNull MessageSender messageSender, @NotNull OpenAiService openAiService) {
+        super(messageSender);
         this.openAiService = openAiService;
-        commandData = new CommandData(getName(), getDescription());
-        commandData.addOption(OptionType.STRING, PROMPT_OPTION_NAME, Utils.GPT_PROMPT_INFORMATION, true);
     }
 
     @Override
-    public void execute(@NotNull SlashCommandEvent event) {
-        CompletableFuture.runAsync(() -> {
-            event.deferReply().queue();
+    public void execute(@NotNull SlashCommandInteractionEvent event) {
+        event.deferReply().queue();
 
-            OptionMapping promptOption = event.getOption(PROMPT_OPTION_NAME);
-            if (promptOption == null) {
-                Utils.sendGPTMessage(event, Utils.GPT_PROMPT_MISSING);
-                return;
-            }
+        OptionMapping promptOption = event.getOption(PROMPT_OPTION_NAME);
+        if (promptOption == null) {
+            messageSender.sendGPTMessage(event, "Please provide a prompt.");
+            return;
+        }
 
-            GPTRequest gptRequest = new GPTRequest(GPTRequestParams.defaultParamsWithPrompt(promptOption.getAsString()));
-            GPTCompletionCreator gptCompletionCreator = new GPTCompletionCreator(openAiService, gptRequest);
-            List<CompletionChoice> choices = gptCompletionCreator.create().getChoices();
+        GPTRequest gptRequest = new GPTRequest(GPTRequestParams.defaultParamsWithPrompt(promptOption.getAsString()));
+        GPTCompletionCreator gptCompletionCreator = new GPTCompletionCreator(openAiService, gptRequest);
+        List<CompletionChoice> choices = gptCompletionCreator.create().getChoices();
 
-            if (choices.isEmpty()) {
-                Utils.sendGPTMessage(event, Utils.NO_RESULTS_FOUND);
-                return;
-            }
+        if (choices.isEmpty()) {
+            messageSender.sendGPTMessage(event, "No results were found matching your prompt.");
+            return;
+        }
 
-            String response = choices.get(0).getText().replaceAll("^\\W+", "");
-            Utils.sendGPTMessage(event, response);
-        });
+        String response = choices.get(0).getText().replaceAll("^\\W+", "");
+        messageSender.sendGPTMessage(event, response);
     }
 
     @Override
@@ -65,11 +59,17 @@ public class GPTCommand implements Command {
 
     @Override
     public String getDescription() {
-        return Utils.GPT_DESCRIPTION;
+        return "Generates text using GPT-3.";
     }
 
     @Override
     public String getUsage() {
-        return Utils.getUsageFormatted(this, PROMPT_OPTION_NAME);
+        return messageSender.getUsageFormatted(this, PROMPT_OPTION_NAME);
+    }
+
+    @Override
+    public CommandData getData() {
+        return SlashCommandDataProvider.of(this)
+                .addOption(OptionType.STRING, PROMPT_OPTION_NAME, "The prompt for the GPT-3 model.", true);
     }
 }

@@ -4,44 +4,48 @@ import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
-import dev.lotnest.sombrero.util.Utils;
+import dev.lotnest.sombrero.message.MessageSender;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.stereotype.Component;
 
 import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
 
+@Component
+@RequiredArgsConstructor
 @Getter
+@Setter
 public class MusicScheduler extends AudioEventAdapter {
 
+    private final MusicManager musicManager;
     private final AudioPlayer audioPlayer;
     private final Queue<Song> songQueue;
+    private final MessageSender messageSender;
     private boolean isMusicLoop;
 
-    public MusicScheduler(@NotNull AudioPlayer audioPlayer) {
-        this.audioPlayer = audioPlayer;
-        songQueue = new LinkedBlockingQueue<>();
-    }
-
     public void queueSong(@NotNull Song song) {
-        Guild guild = song.getEvent().getGuild();
+        SlashCommandInteractionEvent event = song.event();
+        Guild guild = event.getGuild();
+
         if (guild != null) {
-            if (!audioPlayer.startTrack(song.getAudioTrack(), true)) {
+            AudioTrack nextTrack = song.audioTrack();
+            if (!audioPlayer.startTrack(nextTrack, true)) {
                 if (songQueue.offer(song)) {
-                    AudioTrack nextTrack = song.getAudioTrack();
-                    Utils.sendAddedToQueueMessage(song.getEvent(), nextTrack.getInfo().title, nextTrack.getInfo().uri, Utils.getThumbnailURL(nextTrack.getIdentifier()),
-                            MusicManager.getInstance().getGuildMusicManager(guild).getMusicScheduler().getSongQueue().size());
+                    messageSender.sendAddedToQueueMessage(event, nextTrack.getInfo().title, nextTrack.getInfo().uri, messageSender.getThumbnailURL(nextTrack.getIdentifier()),
+                            musicManager.getGuildMusicManager(guild).musicScheduler().getSongQueue().size());
                 } else {
-                    Utils.sendErrorOccurredMessage(song.getEvent(), true);
+                    messageSender.sendErrorOccurredMessage(event, true);
                 }
             } else {
                 notifyNextSong(song);
             }
         } else {
-            Utils.sendErrorOccurredMessage(song.getEvent(), true);
+            messageSender.sendErrorOccurredMessage(event, true);
         }
     }
 
@@ -49,37 +53,57 @@ public class MusicScheduler extends AudioEventAdapter {
         playNextSong(null);
     }
 
-    public void playNextSong(@Nullable SlashCommandEvent eventEndingSong) {
+    public void playNextSong(@Nullable SlashCommandInteractionEvent eventEndingSong) {
         Song nextSong = songQueue.poll();
         if (nextSong != null) {
-            notifyNextSong(nextSong, eventEndingSong);
-            audioPlayer.startTrack(nextSong.getAudioTrack(), false);
+            try {
+                notifyNextSong(nextSong, eventEndingSong);
+                audioPlayer.startTrack(nextSong.audioTrack(), false);
+            } catch (Exception exception) {
+                exception.printStackTrace();
+                messageSender.sendErrorOccurredMessage(nextSong.event(), true);
+            }
         }
     }
 
     public void notifyNextSong(@NotNull Song nextSong) {
-        notifyNextSong(nextSong, nextSong.getEvent());
+        notifyNextSong(nextSong, nextSong.event());
     }
 
-    public void notifyNextSong(@NotNull Song nextSong, @Nullable SlashCommandEvent eventEndingSong) {
+    public void notifyNextSong(@NotNull Song nextSong, @Nullable SlashCommandInteractionEvent eventEndingSong) {
         if (eventEndingSong == null) {
-            eventEndingSong = nextSong.getEvent();
+            eventEndingSong = nextSong.event();
         }
 
-        AudioTrack nextTrack = nextSong.getAudioTrack();
+        AudioTrack nextTrack = nextSong.audioTrack();
         Guild guild = eventEndingSong.getGuild();
 
         if (guild != null) {
             if (!songQueue.isEmpty()) {
-                Utils.sendAddedToQueueMessage(eventEndingSong, nextTrack.getInfo().title, nextTrack.getInfo().uri,
-                        Utils.getThumbnailURL(nextTrack.getIdentifier()),
-                        MusicManager.getInstance().getGuildMusicManager(guild).getMusicScheduler()
+                messageSender.sendAddedToQueueMessage(eventEndingSong, nextTrack.getInfo().title, nextTrack.getInfo().uri,
+                        messageSender.getThumbnailURL(nextTrack.getIdentifier()),
+                        musicManager.getGuildMusicManager(guild).musicScheduler()
                                 .getSongQueue()
                                 .size());
             } else {
-                Utils.sendNowPlayingMessage(eventEndingSong, nextSong.getAudioTrack().getInfo());
+                messageSender.sendNowPlayingMessage(eventEndingSong, nextSong.audioTrack().getInfo());
             }
         }
+    }
+
+    public void skipCurrentSong(@NotNull SlashCommandInteractionEvent event) {
+        if (audioPlayer.getPlayingTrack() == null) {
+            messageSender.sendNoSongsInTheQueueMessage(event);
+            return;
+        }
+
+        if (songQueue.isEmpty()) {
+            audioPlayer.stopTrack();
+            messageSender.sendQueueHasEndedMessage(event);
+            return;
+        }
+
+        playNextSong(event);
     }
 
     @Override
@@ -93,13 +117,5 @@ public class MusicScheduler extends AudioEventAdapter {
 
             playNextSong();
         }
-    }
-
-    public boolean isMusicLoop() {
-        return isMusicLoop;
-    }
-
-    public void setMusicLoop(boolean musicLoop) {
-        this.isMusicLoop = musicLoop;
     }
 }
